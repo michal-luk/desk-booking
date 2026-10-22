@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ u.display_name or u.email }} - {{ _('Users') }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin.users') }}">‹ {{ _('Users') }}</a></p>
+<h1>{{ u.display_name or u.email }} {% if not u.active %}<span class="tag" style="background:var(--err-bg);color:var(--err)">{{ _('blocked') }}</span>{% endif %}</h1>
+<div class="grid2">
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Details and role') }}</h3>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="details">
+    <div class="form-grid">
+      <label class="f">{{ _('First name') }}<input type="text" name="first_name" value="{{ u.first_name or '' }}" required></label>
+      <label class="f">{{ _('Last name') }}<input type="text" name="last_name" value="{{ u.last_name or '' }}" required></label>
+      <label class="f">{{ _('Role') }}<select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if u.role == k }}>{{ _(v) }}</option>{% endfor %}</select></label>
+      <label class="f">{{ _('Language') }}<select name="language"><option value="">{{ _('default') }}</option>{% for code, name in LANGUAGES.items() %}<option value="{{ code }}" {{ 'selected' if u.language == code }}>{{ name }}</option>{% endfor %}</select></label>
+    </div>
+    <label class="option"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }}> {{ _('active account (untick to block access)') }}</label>
+    <p class="small muted">{{ _('E-mail:') }} <b>{{ u.email }}</b> · {{ _('created') }} {{ u.created or '-' }} · {{ _('last login') }} {{ u.last_login or _('never') }}
+      {% if u.sso_provider %} · SSO: {{ u.sso_provider }}{% endif %}</p>
+    <p class="small muted">{{ _('Teams:') }} {% for t in teams %}<a class="tag color" style="background:{{ t.color }}" href="{{ url_for('admin.team', team_id=t.id) }}">{{ t.name }}</a> {% else %}{{ _('none') }}{% endfor %}</p>
+    <button class="btn primary">{{ _('Save') }}</button>
+  </form>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Password and login') }}</h3>
+  <p class="small">{% if u.password_hash %}{{ _('The password is set') }}{% if u.must_change_password %} ({{ _('temporary - to be changed at login') }}){% endif %}.{% else %}{{ _('No password - login with SSO or after an invitation.') }}{% endif %}
+    {% if u.locked_until %}<br><span style="color:var(--err)">{{ _('Locked after failed logins until {time}', time=u.locked_until) }}</span>{% endif %}</p>
+  <form method="post" class="row" style="flex-wrap:wrap">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="password">
+    <input type="password" name="password" class="password-input" placeholder="{{ _('new password') }}" autocomplete="new-password" required>
+    <label class="row small"><input type="checkbox" name="force_change" value="1" checked> {{ _('force a change') }}</label>
+    <button class="btn">{{ _('Set password') }}</button>
+  </form>
+  <div class="row" style="margin-top:10px;flex-wrap:wrap">
+    <form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="invite">
+      <button class="btn blue">{{ _('Send a link to set the password') if mail else _('Create a link to set the password') }}</button></form>
+    {% if u.locked_until %}<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="unlock"><button class="btn">{{ _('Remove the lock') }}</button></form>{% endif %}
+    {% if u.password_hash %}<form method="post" data-confirm="{{ _('Remove the password? The account will log in only with SSO.') }}" data-confirm-button="{{ _('Remove the password') }}" data-danger><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="remove_password"><button class="btn danger">{{ _('Remove the password') }}</button></form>{% endif %}
+  </div>
+  <h3>{{ _('API key') }}</h3>
+  {% if u.api_key_hash %}
+  <p class="small">{{ _('Created {created} · last used {used}', created=u.api_key_created, used=u.api_key_used or _('not yet')) }}</p>
+  <form method="post" data-confirm="{{ _('Revoke the API key of this person? Integrations and the assistant using it will stop working.') }}" data-confirm-button="{{ _('Revoke') }}" data-danger><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="revoke_key"><button class="btn danger">{{ _('Revoke the key') }}</button></form>
+  {% else %}<p class="small muted">{{ _('None. Everyone generates their own key in "My account".') }}</p>{% endif %}
+</div>
+</div>
+{% if u.email != me.email and not last_admin %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Deleting the account') }}</h3>
+  <p class="small muted">{{ _('Deletes the account, team memberships, the permanent desk and {n} upcoming bookings. The history stays in the log. Instead of deleting you can block the account.', n=upcoming) }}</p>
+  <form method="post" data-confirm="{{ _('Delete the account {email}? This cannot be undone.', email=u.email) }}" data-confirm-button="{{ _('Delete the account') }}" data-danger><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="delete"><button class="btn danger">{{ _('Delete the account') }}</button></form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="prefix" content="{{ PREFIX }}">
+  <title>{% block title %}{{ _('Desk booking') }}{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <style>{{ theme_css|safe }}</style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if me %}
+<header class="topbar">
+  <a class="logo" href="{{ url_for('web.plan') }}"><span class="dot"></span>{{ _('Desks') }}</a>
+  {% if environment != 'production' %}<span class="badge-env">{{ environment|upper }}</span>{% endif %}
+  {% set ep = request.endpoint or '' %}
+  <button type="button" class="menu-button" id="menu-button" aria-label="{{ _('Menu') }}">☰</button>
+  <nav>
+    <a href="{{ url_for('web.plan') }}" class="{{ 'active' if ep == 'web.plan' }}">{{ _('Floor plan') }}</a>
+    <a href="{{ url_for('web.my_bookings') }}" class="{{ 'active' if ep == 'web.my_bookings' }}">{{ _('My bookings') }}</a>
+    <a href="{{ url_for('web.team_week') }}" class="{{ 'active' if ep == 'web.team_week' }}">{{ _('My team') }}</a>
+    <a href="{{ url_for('account.index') }}" class="{{ 'active' if ep.startswith('account.') }}">{{ _('My account') }}</a>
+    {% if is_editor %}
+    <details class="menu {{ 'active' if ep.startswith('admin.') }}">
+      <summary>{{ _('Administration') }}</summary>
+      <div class="menu-list">
+        <a href="{{ url_for('admin.floors') }}" class="{{ 'active' if ep in ('admin.floors', 'admin.editor') }}">{{ _('Floors and plans') }}</a>
+        <a href="{{ url_for('admin.teams') }}" class="{{ 'active' if ep in ('admin.teams', 'admin.team') }}">{{ _('Teams') }}</a>
+        {% if is_admin %}
+        <a href="{{ url_for('admin.bookings') }}" class="{{ 'active' if ep == 'admin.bookings' }}">{{ _('All bookings') }}</a>
+        <a href="{{ url_for('admin.users') }}" class="{{ 'active' if ep in ('admin.users', 'admin.user') }}">{{ _('Users and roles') }}</a>
+        <a href="{{ url_for('admin.audit_log') }}" class="{{ 'active' if ep == 'admin.audit_log' }}">{{ _('Occupancy and log') }}</a>
+        <a href="{{ url_for('admin.settings') }}" class="{{ 'active' if ep.startswith('admin.settings') }}">{{ _('Settings') }}</a>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </nav>
+  <div class="user" title="{{ me.email }} · {{ _(ROLES.get(my_role, my_role)) }}">
+    {% include '_language_switch.html' %}
+    <a class="who" href="{{ url_for('account.index') }}" title="{{ _('My account, password, API key') }}">{{ me.display_name or me.email }}</a>
+    <a href="{{ url_for('auth.logout') }}">{{ _('Log out') }}</a></div>
+</header>
+{% endif %}
+<main class="{% block main_class %}{% endblock %}">
+  {% if not self.main_class() %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script>window.I18N = {{ js_catalog|tojson }};</script>
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

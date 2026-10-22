@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="login-box"><div class="card">
+  {% with light=True %}{% include '_language_switch.html' %}{% endwith %}
+  <h1>{{ _('Desk booking') }}</h1>
+  <p>{{ message }}</p>
+  {% if login_again %}<p><a class="btn primary" href="{{ url_for('auth.login') }}">{{ _('Log in again') }}</a></p>{% endif %}
+</div></div>
+{% endblock %}

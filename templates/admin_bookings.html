@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('All bookings') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<div class="row"><h1 style="margin:0">{{ _('All bookings') }}</h1><span class="spacer"></span>
+  <a class="btn" href="{{ url_for('admin.bookings', csv=1, **f.to_dict()) }}" title="{{ _('CSV file with the current filters - opens in Excel') }}">⬇ {{ _('Export to Excel (CSV)') }}</a>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <form method="get" class="form-grid">
+    <label class="f">{{ _('From') }}<input type="date" name="from" value="{{ start }}"></label>
+    <label class="f">{{ _('To') }}<input type="date" name="to" value="{{ end }}"></label>
+    <label class="f">{{ _('Floor') }}<select name="floor"><option value="">{{ _('all') }}</option>
+      {% for p in floors %}<option value="{{ p.id }}" {{ 'selected' if f.get('floor', type=int) == p.id }}>{{ p.name }}</option>{% endfor %}</select></label>
+    <label class="f">{{ _('Type') }}<select name="type"><option value="">{{ _('desks, rooms and booths') }}</option>
+      {% for k, v in [('desk', _('desks')), ('room', _('rooms')), ('booth', _('booths'))] %}<option value="{{ k }}" {{ 'selected' if f.get('type') == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label class="f">{{ _('Team') }}<select name="team"><option value="">{{ _('everyone') }}</option>
+      {% for t in teams %}<option value="{{ t.id }}" {{ 'selected' if f.get('team', type=int) == t.id }}>{{ t.name }}</option>{% endfor %}</select></label>
+    <label class="f">{{ _('Person, place or subject') }}<input type="search" name="q" value="{{ f.get('q', '') }}" placeholder="{{ _('e.g. Smith, A-01, Room Wisła') }}"></label>
+    <div class="row"><button class="btn primary">{{ _('Filter') }}</button><a class="btn" href="{{ url_for('admin.bookings') }}">{{ _('Clear') }}</a></div>
+  </form>
+  <div class="row small" style="margin-top:10px;gap:6px">
+    <span class="muted">{{ _('Quick:') }}</span>
+    <a class="btn sm" href="{{ url_for('admin.bookings', **{'from': today, 'to': today}) }}">{{ _('today') }}</a>
+    <a class="btn sm" href="{{ url_for('admin.bookings') }}">{{ _('next 30 days') }}</a>
+    <a class="btn sm" href="{{ url_for('admin.bookings', type='room') }}">{{ _('rooms - 30 days') }}</a>
+    <a class="btn sm" href="{{ url_for('admin.bookings', **{'from': month_ago, 'to': today}) }}">{{ _('past 30 days') }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <span>{{ _('{total} bookings · {people} people · desks {desks} · rooms and booths {rooms}', total=summary.total, people=summary.people, desks=summary.desks, rooms=summary.rooms) }}</span>
+    <span class="spacer"></span>
+    <button class="btn sm danger" id="cancel-selected" disabled>{{ _('Cancel selected') }}</button>
+  </div>
+  {% if truncated %}<p class="small" style="color:var(--accent2-dark)">{{ _('Showing the first {n} bookings - narrow the filters or use the export.', n=limit) }}</p>{% endif %}
+  <table class="t" style="margin-top:10px">
+    <tr><th style="width:30px"><input type="checkbox" id="select-all" title="{{ _('Select all') }}"></th>
+      <th>{{ _('Date') }}</th><th>{{ _('Hours') }}</th><th>{{ _('Place') }}</th><th>{{ _('Person') }}</th><th>{{ _('Booked by') }}</th><th></th></tr>
+    {% for r in rows %}
+    <tr id="r{{ r.id }}" class="{{ 'past' if r.date < today }}">
+      <td><input type="checkbox" class="sel" value="{{ r.id }}"></td>
+      <td style="white-space:nowrap"><b>{{ r.date }}</b></td>
+      <td style="white-space:nowrap">{% if r.time_from %}{{ r.time_from }}–{{ r.time_to }}{% else %}<span class="muted">{{ _('all day') }}</span>{% endif %}</td>
+      <td>{{ r.place }} <span class="small muted">· {{ r.floor }}</span>{% if r.title %}<br><span class="small muted">{{ r.title }}</span>{% endif %}</td>
+      <td>{{ r.person or r.email }}<br><span class="small muted">{{ r.email }}</span></td>
+      <td class="small muted mob-hide">{{ _('themselves') if r.created_by == r.email else (r.created_by_name or r.created_by) }}<br>{{ r.created[:16] }}</td>
+      <td class="actions"><div class="row end">
+        <a class="btn sm" href="{{ url_for('web.plan', floor=r.floor_id, date=r.date) }}">{{ _('Plan') }}</a>
+        <button class="btn sm danger" data-cancel="{{ r.id }}" data-desc="{{ r.place }}, {{ r.date }} ({{ r.hours }}), {{ r.person or r.email }}">{{ _('Cancel') }}</button>
+      </div></td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="empty">{{ _('No bookings for the chosen filters.') }}</td></tr>{% endfor %}
+  </table>
+  <p class="small muted">{{ _('The person whose booking you cancel gets an e-mail saying who cancelled it.') }}</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const selected = () => [...document.querySelectorAll('.sel:checked')].map(c => parseInt(c.value, 10));
+const bulk = document.getElementById('cancel-selected');
+function refresh() {
+  const n = selected().length;
+  bulk.disabled = !n;
+  bulk.textContent = n ? t('Cancel selected ({n})', { n }) : t('Cancel selected');
+}
+document.querySelectorAll('.sel').forEach(c => c.onchange = refresh);
+document.getElementById('select-all').onchange = ev => {
+  document.querySelectorAll('.sel').forEach(c => { c.checked = ev.target.checked; });
+  refresh();
+};
+bulk.onclick = () => cancelBookings(selected(), t('{n} bookings', { n: selected().length }));
+document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => cancelBookings([parseInt(b.dataset.cancel, 10)], b.dataset.desc));
+async function cancelBookings(ids, desc) {
+  if (!ids.length || !(await confirmDialog(t('Cancel: {desc}?', { desc }), { button: t('Cancel the booking'), cancel: t('Back'), danger: true }))) return;
+  const r = await api('/api/cancel', { method: 'POST', body: { ids } });
+  if (!r.ok) return toast(r.error || t('Error'), true);
+  r.cancelled.forEach(id => { const w = document.getElementById('r' + id); if (w) w.remove(); });
+  toast(t('Cancelled: {n}.', { n: r.cancelled.length }) + (r.errors && r.errors.length ? ' ' + r.errors.join('; ') : ''), !!(r.errors && r.errors.length));
+  refresh();
+}
+</script>
+{% endblock %}

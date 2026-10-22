@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('My account') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('My account') }}</h1>
+<div class="grid2">
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Details') }}</h3>
+  <form method="post" action="{{ url_for('account.details') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <label class="f">{{ _('First name') }}<input type="text" name="first_name" value="{{ me.first_name or '' }}" required></label>
+      <label class="f">{{ _('Last name') }}<input type="text" name="last_name" value="{{ me.last_name or '' }}" required></label>
+      <label class="f">{{ _('Language') }}<select name="language">
+        {% for code, name in LANGUAGES.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ name }}</option>{% endfor %}</select></label>
+    </div>
+    <p class="small muted">{{ _('E-mail:') }} <b>{{ me.email }}</b> · {{ _('role:') }} {{ _(ROLES.get(my_role, my_role)) }}
+      {% if me.sso_provider %} · {{ _('last login with SSO ({provider})', provider=me.sso_provider) }}{% endif %}</p>
+    <button class="btn primary">{{ _('Save') }}</button>
+  </form>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Password') }}</h3>
+  {% if me.password_hash %}<p class="small muted">{{ _('The password is set. Only its hash (scrypt) is stored - nobody, including the administrator, can read it.') }}</p>
+  {% else %}<p class="small muted">{{ _('The account has no password - you log in with SSO. You can set a password if the administrator allows password login.') }}</p>{% endif %}
+  <a class="btn" href="{{ url_for('account.password') }}">{{ _('Change password') if me.password_hash else _('Set password') }}</a>
+</div>
+</div>
+
+<div class="card" id="api">
+  <h3 style="margin-top:0">{{ _('API key and AI assistant (MCP)') }}</h3>
+  {% if not api.api and not api.mcp %}
+    <p class="muted">{{ _('The administrator has switched off access through the API and MCP.') }}</p>
+  {% else %}
+  <p class="small muted">{{ _('The key works with the permissions of your account ({role}) - treat it like a password. It is stored encrypted; its SHA-256 hash is used for the lookup.', role=_(ROLES.get(my_role, my_role))) }}</p>
+  <div class="flash ok" id="key-box" {{ '' if show_key else 'hidden' }}><b>{{ _('Your API key:') }}</b>
+    <div class="key-row" style="margin-top:6px"><code class="code" id="key">{{ show_key or '' }}</code>
+      <button type="button" class="btn sm" id="key-copy">{{ _('Copy') }}</button></div>
+    <p class="small" style="margin:6px 0 0">{{ _('Copy it now. After a page refresh the key is hidden again - you will see it again after entering your password.') }}</p>
+  </div>
+  {% if key_error %}<div class="flash error">{{ key_error }}</div>{% endif %}
+  <div id="with-key" {{ '' if me.api_key else 'hidden' }}>
+    <p>{{ _('You have an API key') }} · {{ _('created') }} <b id="key-created">{{ me.api_key_created or '' }}</b> · {{ _('last used:') }} <b id="key-used">{{ me.api_key_used or _('not yet') }}</b></p>
+    <div class="row" style="flex-wrap:wrap">
+      <button type="button" class="btn" data-key="show">{{ _('Show the key') }}</button>
+      <button type="button" class="btn blue" data-key="new">{{ _('Generate a new one') }}</button>
+      <button type="button" class="btn danger" data-key="delete">{{ _('Delete the key') }}</button>
+    </div>
+  </div>
+  <div id="without-key" {{ 'hidden' if me.api_key else '' }}>
+    <button type="button" class="btn primary" data-key="new">{{ _('Generate an API key') }}</button>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    {% if api.mcp %}
+    <div>
+      <h3>{{ _('AI assistant through MCP') }}</h3>
+      <p class="small">{{ _('Connect the MCP server in your assistant (Claude, ChatGPT, Copilot and other MCP clients over HTTP) - then you can write e.g.') }}
+        <i>{{ _('"book me a desk next Thursday by the window"') }}</i>, <i>{{ _('"who from my team is in the office tomorrow?"') }}</i>, <i>{{ _('"cancel my bookings for next week"') }}</i>.</p>
+      <p class="small">{{ _('Server address:') }} <code class="code">{{ mcp_url }}</code><br>{{ _('Header:') }} <code class="code">Authorization: Bearer &lt;{{ _('key') }}&gt;</code></p>
+      <p class="small muted">Claude Code:</p>
+      <pre class="code">claude mcp add --transport http desk-booking {{ mcp_url }} \
+  --header "Authorization: Bearer <span class="insert-key">{{ show_key or 'YOUR_KEY' }}</span>"</pre>
+      <p class="small muted">{{ _('Client configuration file (e.g. Claude Desktop, VS Code):') }}</p>
+      <pre class="code">{
+  "mcpServers": {
+    "desk-booking": {
+      "type": "http",
+      "url": "{{ mcp_url }}",
+      "headers": { "Authorization": "Bearer <span class="insert-key">{{ show_key or 'YOUR_KEY' }}</span>" }
+    }
+  }
+}</pre>
+    </div>
+    {% endif %}
+    {% if api.api %}
+    <div>
+      <h3>REST API</h3>
+      <p class="small">{{ _('Address:') }} <code class="code">{{ api_url }}</code> - {{ _('list of endpoints:') }} <a href="{{ url_for('api_v1.describe') }}" target="_blank">{{ api_url }}</a></p>
+      <pre class="code"># {{ _('free desks') }}
+curl -H "X-API-Key: <span class="insert-key">{{ show_key or 'YOUR_KEY' }}</span>" \
+  "{{ api_url }}/free?date=YYYY-MM-DD&type=desk"
+
+# {{ _('booking') }}
+curl -X POST -H "X-API-Key: <span class="insert-key">{{ show_key or 'YOUR_KEY' }}</span>" \
+  -H "Content-Type: application/json" \
+  -d '{"place": "A-01", "date": "YYYY-MM-DD"}' \
+  {{ api_url }}/bookings
+
+# {{ _('my bookings / cancelling') }}
+curl -H "X-API-Key: ..." {{ api_url }}/bookings
+curl -X DELETE -H "X-API-Key: ..." {{ api_url }}/bookings/123</pre>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  // The page may be the answer to a submitted form - a refresh must not send it again.
+  if (location.pathname.endsWith('/key')) history.replaceState(null, '', '{{ url_for('account.index') }}#api');
+  const HAS_PASSWORD = {{ 'true' if me.password_hash else 'false' }};
+  const box = document.getElementById('key-box'), code = document.getElementById('key');
+  if (!code) return;
+  const TEXTS = {
+    show: { title: t('Show the API key'), button: t('Show') },
+    new: { title: t('New API key'), button: t('Generate'), text: t('The current key will stop working - integrations and the AI assistant must be switched to the new one.') },
+    delete: { title: t('Delete the API key'), button: t('Delete the key'), danger: true, text: t('Integrations and the AI assistant using this key will stop working.') },
+  };
+  const showKey = k => {
+    code.textContent = k;
+    document.querySelectorAll('.insert-key').forEach(e => { e.textContent = k; });
+    box.hidden = false;
+  };
+  async function send(action, password) {
+    const fd = new FormData();
+    fd.append('action', action);
+    if (password) fd.append('password', password);
+    return api('/account/key', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': CSRF, 'X-Requested-With': 'fetch' } });
+  }
+  document.querySelectorAll('[data-key]').forEach(b => b.addEventListener('click', async () => {
+    const action = b.dataset.key;
+    const hasKey = !document.getElementById('with-key').hidden;
+    let result = null;
+    const run = async password => { result = await send(action, password === true ? null : password); return result.ok ? null : (result.error || t('Failed.')); };
+    if (!hasKey) {                       // the first key - no confirmation
+      await run(true);
+      if (!result.ok) { toast(result.error || t('Failed.'), true); return; }
+    } else if (await dialog({ ...TEXTS[action], run,
+        field: HAS_PASSWORD ? { type: 'password', label: t('Password of your account'), autocomplete: 'current-password' } : null,
+        text: (TEXTS[action].text || '') + (HAS_PASSWORD ? '' : ' ' + t('Account without a password: a login within the last 15 minutes is the confirmation.')) }) === null) {
+      return;
+    }
+    if (action === 'delete') {
+      box.hidden = true;
+      document.getElementById('with-key').hidden = true;
+      document.getElementById('without-key').hidden = false;
+      document.querySelectorAll('.insert-key').forEach(e => { e.textContent = 'YOUR_KEY'; });
+      toast(t('API key deleted.'));
+      return;
+    }
+    showKey(result.key);
+    if (action === 'new') {
+      document.getElementById('with-key').hidden = false;
+      document.getElementById('without-key').hidden = true;
+      document.getElementById('key-created').textContent = result.created;
+      document.getElementById('key-used').textContent = t('not yet');
+      toast(t('A new API key has been generated.'));
+    }
+  }));
+  document.getElementById('key-copy').onclick = () =>
+    navigator.clipboard.writeText(code.textContent).then(() => toast(t('Key copied.')), () => toast(t('Select the key and copy it manually.'), true));
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Floor plan') }} - {{ _('Desks') }}{% endblock %}
+{% block main_class %}full{% endblock %}
+{% block content %}
+{% if not floors %}
+  <div class="card empty" style="margin:30px">
+    <h2>{{ _('There are no floors yet') }}</h2>
+    {% if is_editor %}<p><a class="btn primary" href="{{ url_for('admin.floors') }}">{{ _('Create a floor and draw the plan') }}</a></p>
+    {% else %}<p>{{ _('The administrator has not prepared the office plan yet.') }}</p>{% endif %}
+  </div>
+{% else %}
+<div class="plan-layout">
+  <div class="plan-main">
+    <div class="plan-toolbar">
+      <select id="floor">
+        {% for f in floors %}<option value="{{ f.id }}" {{ 'selected' if f.id == floor_id }}>{{ f.name }}{% if f.location %} · {{ f.location }}{% endif %}</option>{% endfor %}
+      </select>
+      <div class="date-nav">
+        <button class="btn sm" id="day-back" title="{{ _('Previous day') }}">‹</button>
+        <input type="date" id="date" value="{{ date }}">
+        <button class="btn sm" id="day-next" title="{{ _('Next day') }}">›</button>
+        <button class="btn sm" id="today">{{ _('Today') }}</button>
+      </div>
+      <span id="weekday" class="muted"></span>
+      {% if people or is_admin %}
+      <select id="for" title="{{ _('Whom you are booking for') }}">
+        <option value="">{{ _('Booking for myself') }}</option>
+        {% if people %}<optgroup label="{{ _('For a person from my team') }}">
+        {% for p in people %}<option value="{{ p.email }}">{{ p.display_name }}</option>{% endfor %}</optgroup>{% endif %}
+        {% if is_admin %}<option value="__other">{{ _('For another person…') }}</option>{% endif %}
+      </select>
+      {% endif %}
+      <span class="spacer"></span>
+      <span id="counter" class="tag"></span>
+      <div class="toggle view-toggle" id="view-toggle">
+        <button type="button" data-view="plan" class="active">{{ _('Plan') }}</button>
+        <button type="button" data-view="list">{{ _('List') }}</button>
+      </div>
+    </div>
+    <div class="place-list" id="place-list" hidden></div>
+    <div class="plan-wrap" id="plan-wrap">
+      <svg id="plan"></svg>
+      <div class="zoom-ctrl">
+        <button class="btn" id="zoom-in" title="{{ _('Zoom in') }}">+</button>
+        <button class="btn" id="zoom-out" title="{{ _('Zoom out') }}">−</button>
+        <button class="btn" id="zoom-fit" title="{{ _('Whole plan') }}">⤢</button>
+      </div>
+    </div>
+  </div>
+  <aside class="plan-side" id="plan-side">
+    <button type="button" class="sheet-handle" id="sheet-handle" aria-label="{{ _('Collapse / expand the panel') }}"><span></span></button>
+    <div class="details" id="details">
+      <p class="muted">{{ _('Click a desk, room or booth on the plan to see the details and book.') }}</p>
+    </div>
+    <h3>{{ _('Find a person') }}</h3>
+    <input type="search" id="search" placeholder="{{ _('First name, last name or e-mail') }}" style="width:100%">
+    <ul class="search-results" id="search-results" style="display:none"></ul>
+    <h3>{{ _('Legend') }}</h3>
+    <div class="legend">
+      <span><i style="background:var(--free)"></i>{{ _('Free') }}</span>
+      <span><i style="background:var(--mine)"></i>{{ _('Mine') }}</span>
+      <span><i style="background:var(--taken)"></i>{{ _('Taken') }}</span>
+      <span><i style="background:var(--team)"></i>{{ _('My team') }}</span>
+      <span><i style="background:var(--assigned)"></i>{{ _('Permanent desk') }}</span>
+      <span><i style="background:var(--unavailable)"></i>{{ _('Unavailable') }}</span>
+      <span><i style="background:var(--partial)"></i>{{ _('Part of the day taken') }}</span>
+    </div>
+    <p class="help" style="margin-top:14px">{{ _('Mouse wheel (on a phone: two fingers) - zoom, dragging the background - moving the plan.') }}<br>
+      {{ _('Bookings up to {n} days ahead.', n=max_days) }}{% if is_admin %} {{ _('(the limit does not apply to administrators)') }}{% endif %}</p>
+  </aside>
+</div>
+
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="{{ _('Schedule of the place') }}">
+  <div class="drawer-header">
+    <div><div class="small muted">{{ _('Schedule') }}</div><h3 id="dr-title" style="margin:0">…</h3></div>
+    <button type="button" class="btn sm" id="dr-close" aria-label="{{ _('Close') }}">✕</button>
+  </div>
+  <div class="drawer-bar">
+    <button type="button" class="btn sm" id="dr-back">‹</button>
+    <span id="dr-range" class="dr-range"></span>
+    <button type="button" class="btn sm" id="dr-next">›</button>
+    <span class="spacer"></span>
+    <div class="toggle" id="dr-mode">
+      <button type="button" data-mode="week" class="active">{{ _('Week') }}</button>
+      <button type="button" data-mode="list">{{ _('List') }}</button>
+    </div>
+  </div>
+  <div class="drawer-body" id="dr-body"></div>
+  <p class="small muted drawer-footer">{{ _('Click a free slot in the grid to book that day and time.') }}</p>
+</aside>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if floors %}<script>const HOURS = {{ hours|tojson }};</script><script src="{{ url_for('static', filename='js/plan.js') }}"></script>{% endif %}{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Floors') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Floors and plans') }}</h1>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('New floor') }}</h3>
+  <form method="post" action="{{ url_for('admin.save_floor') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="active" value="1"><input type="hidden" name="to_editor" value="1">
+    <div class="form-grid">
+      <label class="f">{{ _('Name') }}<input type="text" name="name" required placeholder="{{ _('e.g. Floor 2') }}"></label>
+      <label class="f">{{ _('Location / building') }}<input type="text" name="location" placeholder="{{ _('e.g. Building A, ground floor') }}"></label>
+      <label class="f">{{ _('Plan width') }}<input type="number" name="width" value="1600" min="400" max="6000"></label>
+      <label class="f">{{ _('Plan height') }}<input type="number" name="height" value="1000" min="300" max="6000"></label>
+      <label class="f">{{ _('Grid') }}<input type="number" name="grid" value="20" min="5" max="100"></label>
+      <label class="f">{{ _('Order') }}<input type="number" name="sort_order" value="{{ floors|length }}"></label>
+    </div>
+    <p><button class="btn primary">{{ _('Create and open the editor') }}</button></p>
+  </form>
+</div>
+<div class="card">
+  <table class="t">
+    <tr><th>{{ _('Floor') }}</th><th>{{ _('Desks') }}</th><th>{{ _('Permanent') }}</th><th>{{ _('Bookings today') }}</th><th>{{ _('Visible') }}</th><th></th></tr>
+    {% for f in floors %}
+    <tr>
+      <td><b>{{ f.name }}</b>{% if f.location %}<br><span class="small muted">{{ f.location }}</span>{% endif %}</td>
+      <td>{{ f.desks }}</td><td>{{ f.fixed }}</td><td>{{ f.today }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin.save_floor') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          {% for k in ['id', 'name', 'location', 'width', 'height', 'grid', 'sort_order'] %}<input type="hidden" name="{{ k }}" value="{{ f[k] if f[k] is not none else '' }}">{% endfor %}
+          <label class="row small"><input type="checkbox" name="active" value="1" {{ 'checked' if f.active }} onchange="this.form.submit()"> {{ _('for users') }}</label>
+        </form>
+      </td>
+      <td class="actions"><div class="row end">
+        <a class="btn sm blue" href="{{ url_for('admin.editor', floor_id=f.id) }}">{{ _('Plan editor') }}</a>
+        <a class="btn sm" href="{{ url_for('web.plan', floor=f.id) }}">{{ _('Preview') }}</a>
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('admin.delete_floor', floor_id=f.id) }}" data-confirm="{{ _('Delete the floor together with its places and bookings?') }}" data-confirm-button="{{ _('Delete the floor') }}" data-danger>
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn sm danger">{{ _('Delete') }}</button></form>
+        {% endif %}
+      </div></td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="empty">{{ _('There are no floors yet - create the first one above.') }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

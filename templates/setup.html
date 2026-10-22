@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('First start') }} - {{ _('Desk booking') }}{% endblock %}
+{% block content %}
+<div class="login-box" style="max-width:520px"><div class="card">
+  {% with light=True %}{% include '_language_switch.html' %}{% endwith %}
+  <h1>{{ _('First start') }}</h1>
+  <p class="muted">{{ _('Create the administrator account. The setup code is printed in the server log (the window where python run.py runs).') }}</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="f">{{ _('Setup code') }}<input type="text" name="code" required autocomplete="off" placeholder="XXXX-XXXX-XXXX" autofocus></label>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f">{{ _('First name') }}<input type="text" name="first_name" value="{{ first_name or '' }}" required></label>
+      <label class="f">{{ _('Last name') }}<input type="text" name="last_name" value="{{ last_name or '' }}" required></label>
+    </div>
+    <label class="f">{{ _('E-mail') }}<input type="email" name="email" value="{{ email or '' }}" required autocomplete="username"></label>
+    <label class="f">{{ _('Password (at least 10 characters, letters and digits)') }}<input type="password" name="password" required autocomplete="new-password"></label>
+    <label class="f">{{ _('Repeat the password') }}<input type="password" name="password2" required autocomplete="new-password"></label>
+    <button class="btn primary wide">{{ _('Create the administrator') }}</button>
+  </form>
+  <p class="small muted" style="margin-top:12px">{{ _('If an account with this address already exists, it gets the administrator role and the new password.') }}</p>
+</div></div>
+{% endblock %}

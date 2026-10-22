@@ -1,0 +1,35 @@
+# Quick start: docker compose up -d   ->   http://localhost:2230/desks
+# One-time setup code for the first administrator: docker compose logs app
+#
+# SQLite in the "data" volume by default. Switch to the PostgreSQL service "db" below after logging in:
+# Administration -> Settings -> Database (host: db, database and user: desks, password as below).
+services:
+  app:
+    build: .
+    ports:
+      - "2230:2230"
+    environment:
+      APP_URL: ${APP_URL:-http://localhost:2230/desks}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}     # recommended: python -c "import secrets; print(secrets.token_hex(32))"
+      SECRET_KEY: ${SECRET_KEY:-}
+    volumes:
+      - data:/app/data
+      - uploads:/app/static/uploads
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: desks
+      POSTGRES_USER: desks
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-password}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  data:
+  uploads:
+  postgres:

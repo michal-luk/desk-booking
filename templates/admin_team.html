@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{{ t.name }} - {{ _('Teams') }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin.teams') }}">‹ {{ _('Teams') }}</a></p>
+<h1 class="chip"><i style="background:{{ t.color }};width:16px;height:16px"></i>{{ t.name }}</h1>
+<div class="grid2">
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Settings') }}</h3>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <label class="f">{{ _('Name') }}<input type="text" name="name" value="{{ t.name }}" required></label>
+      <label class="f">{{ _('Team manager') }}<input type="text" data-people data-target="manager_email" value="{{ manager.display_name if manager else (t.manager_email or '') }}" placeholder="{{ _('search by name') }}"></label>
+      <input type="hidden" name="manager_email" value="{{ t.manager_email or '' }}">
+      <label class="f">{{ _('Description') }}<input type="text" name="description" value="{{ t.description or '' }}"></label>
+      <label class="f">{{ _('Colour on the plan') }}<input type="color" name="color" value="{{ t.color }}"></label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary">{{ _('Save') }}</button>
+      <span class="spacer"></span>
+      <button class="btn danger sm" form="delete-team">{{ _('Delete the team') }}</button>
+    </div>
+  </form>
+  <form id="delete-team" method="post" action="{{ url_for('admin.delete_team', team_id=t.id) }}" data-confirm="{{ _('Delete the team? Its places will be open to everyone.') }}" data-confirm-button="{{ _('Delete the team') }}" data-danger>
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"></form>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Places of the team ({n})', n=places|length) }}</h3>
+  {% if places %}
+    <div class="tags">{% for p in places %}<a class="tag" href="{{ url_for('admin.editor', floor_id=p.floor_id) }}" title="{{ p.floor }}{% if p.zone %} · {{ _('from the zone {zone}', zone=p.zone) }}{% endif %}">{{ p.name }}{% if p.zone %}*{% endif %}</a>{% endfor %}</div>
+    {% if places|selectattr('zone')|list %}<p class="small muted">* {{ _('access from a zone on the plan') }}</p>{% endif %}
+  {% else %}<p class="muted small">{{ _('None. Places are assigned to teams in the plan editor: select desks or draw a zone and choose the teams.') }}</p>{% endif %}
+</div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Add members') }}</h3>
+  <div class="grid2">
+    <form method="post" action="{{ url_for('admin.team_members', team_id=t.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="person">
+      <div class="form-grid">
+        <label class="f">{{ _('E-mail') }}<input type="email" name="email" required data-people data-fill placeholder="{{ _('address or name of an existing person') }}"></label>
+        <label class="f">{{ _('First name') }}<input type="text" name="first_name"></label>
+        <label class="f">{{ _('Last name') }}<input type="text" name="last_name"></label>
+      </div>
+      <p class="small muted">{{ _('A person with an account: the e-mail is enough (the suggestion fills in the rest). A new person: enter the first and last name - an account with the User role will be created.') }}</p>
+      <label class="option small"><input type="checkbox" name="invite" value="1" {{ 'checked' if mail }}> {{ _('send new people an e-mail with a link to set a password') if mail else _('prepare a link to set a password for new people') }}</label>
+      <button class="btn primary">{{ _('Add to the team') }}</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.team_members', team_id=t.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="list">
+      <label class="f">{{ _('…or paste a list - one person per line') }}
+        <textarea name="list" rows="5" placeholder="jan.kowalski@example.com; Jan; Kowalski&#10;Anna Nowak &lt;anna.nowak@example.com&gt;&#10;piotr.zielinski@example.com"></textarea></label>
+      <p class="small muted">{{ _('Formats:') }} <code>e-mail; {{ _('First') }}; {{ _('Last') }}</code> ({{ _('e.g. from Excel') }}), <code>{{ _('First') }} {{ _('Last') }} &lt;e-mail&gt;</code> ({{ _('from Outlook') }}) {{ _('or just the e-mail of a person who already has an account.') }}</p>
+      <label class="option small"><input type="checkbox" name="invite" value="1" {{ 'checked' if mail }}> {{ _('send new people an invitation e-mail') if mail else _('prepare links to set a password for new people') }}</label>
+      <button class="btn blue">{{ _('Add from the list') }}</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('admin.team_members', team_id=t.id) }}" id="remove-form" data-confirm="{{ _('Remove the selected people from the team?') }}" data-confirm-button="{{ _('Remove from the team') }}" data-danger>
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="remove">
+    <div class="row"><h3 style="margin:0">{{ _('Members ({n})', n=members|length) }}</h3><span class="spacer"></span>
+      {% if members %}<button class="btn sm danger" id="remove-selected" disabled>{{ _('Remove selected') }}</button>{% endif %}</div>
+    <table class="t" style="margin-top:10px">
+      <tr><th style="width:30px"><input type="checkbox" id="select-all" title="{{ _('Select all') }}"></th><th>{{ _('First and last name') }}</th><th>{{ _('E-mail') }}</th><th>{{ _('Account') }}</th><th></th></tr>
+      {% for p in members %}
+      <tr><td><input type="checkbox" class="sel" name="email" value="{{ p.email }}"></td>
+        <td><b>{{ p.display_name or p.email }}</b>{% if p.email == t.manager_email %} <span class="tag accent">{{ _('manager') }}</span>{% endif %}</td>
+        <td class="small">{{ p.email }}</td>
+        <td class="small">{% if not p.active %}<span style="color:var(--err)">{{ _('blocked') }}</span>{% elif not p.last_login %}<span class="muted">{{ _('has not logged in yet') }}</span>{% else %}<span class="muted">{{ _('active') }}</span>{% endif %}
+          {% if is_admin %} · <a href="{{ url_for('admin.user', email=p.email) }}">{{ _('account') }}</a>{% endif %}</td>
+        <td class="actions"><div class="row end">{% if p.active %}
+          {% if mail or is_admin %}<button type="button" class="btn sm" data-password-link="{{ p.email }}" data-name="{{ p.display_name or p.email }}" title="{{ _('E-mail with a link to set a new password') }}">{{ _('Send password link') }}</button>{% endif %}
+          {% if is_admin %}<button type="button" class="btn sm" data-set-password="{{ p.email }}" data-name="{{ p.display_name or p.email }}" title="{{ _('Temporary password to change at login') }}">{{ _('Set password') }}</button>{% endif %}
+        {% endif %}</div></td></tr>
+      {% else %}<tr><td colspan="5" class="empty">{{ _('No members - add them above.') }}</td></tr>{% endfor %}
+    </table>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const count = () => document.querySelectorAll('.sel:checked').length;
+  const btn = document.getElementById('remove-selected');
+  const refresh = () => { if (btn) { btn.disabled = !count(); btn.textContent = count() ? t('Remove selected ({n})', { n: count() }) : t('Remove selected'); } };
+  document.querySelectorAll('.sel').forEach(c => c.onchange = refresh);
+  const all = document.getElementById('select-all');
+  if (all) all.onchange = () => { document.querySelectorAll('.sel').forEach(c => { c.checked = all.checked; }); refresh(); };
+})();
+</script>
+{% endblock %}

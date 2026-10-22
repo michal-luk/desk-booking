@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('My team') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+{% set q_extra = ('&only=1' if only else '') ~ ('&group=' ~ chosen if chosen else '') %}
+<div class="row">
+  <h1 style="margin:0">{{ _('Who is in the office when') }}</h1>
+  <span class="spacer"></span>
+  <a class="btn" href="?date={{ (days[0] - timedelta(days=7)).isoformat() }}{{ q_extra }}">‹ {{ _('previous') }}</a>
+  <form method="get" class="row"><input type="date" name="date" value="{{ date.isoformat() }}" onchange="this.form.submit()">
+    {% if only %}<input type="hidden" name="only" value="1">{% endif %}</form>
+  <a class="btn" href="?date={{ (days[0] + timedelta(days=7)).isoformat() }}{{ q_extra }}">{{ _('next') }} ›</a>
+</div>
+<div class="row" style="margin:10px 0 14px">
+  <span class="muted">{{ _('Week {start} - {end}', start=days[0].strftime('%d.%m'), end=days[-1].strftime('%d.%m.%Y')) }}</span>
+  {% if candidates|length > 1 %}
+  <select onchange="location.search = '?date={{ date.isoformat() }}&group=' + this.value + '{{ '&only=1' if only }}'" title="{{ _('Show another group') }}">
+    {% for i, name, n in candidates %}<option value="{{ i }}" {{ 'selected' if i == chosen }}>{{ name }} ({{ n }})</option>{% endfor %}
+  </select>
+  {% endif %}
+  <span class="spacer"></span>
+  <label class="row small"><input type="checkbox" {{ 'checked' if only }}
+    onchange="location.search = '?date={{ date.isoformat() }}{{ '&group=' ~ chosen if chosen }}' + (this.checked ? '&only=1' : '')"> {{ _('Only people with a booking this week') }}</label>
+</div>
+{% if not groups %}
+  <div class="card empty">{{ _('You do not belong to any team.') }}</div>
+{% endif %}
+{% for gr in groups %}
+<div class="card">
+  <h3 style="margin-top:0" class="chip"><i style="background:{{ gr.color }}"></i>{{ gr.name }}
+    <span class="muted small">({% if only %}{{ gr.people|length }} / {% endif %}{{ gr.total }})</span></h3>
+  <div class="week-scroll">
+  <table class="t week">
+    <tr><th>{{ _('Person') }}</th>
+      {% for d in days %}<th class="{{ 'today' if d == today }}" style="text-align:center">{{ weekday(d) }} {{ d.strftime('%d.%m') }}
+        <div class="in-office" title="{{ _('People with a desk that day') }}">{{ _('in the office:') }} <b>{{ gr.in_office[loop.index0] }}</b></div></th>{% endfor %}
+    </tr>
+    {% for p in gr.people %}
+    <tr>
+      <td><b>{{ p.name }}</b>{% if p.email == me.email %} <span class="tag accent">{{ _('me') }}</span>{% endif %}</td>
+      {% for d in days %}{% set r = desks.get((p.email, d.isoformat())) %}{% set s = rooms.get((p.email, d.isoformat()), []) %}
+      <td class="day {{ 'today' if d == today }}">
+        {% if r %}<a href="{{ url_for('web.plan', floor=r.floor_id, date=d.isoformat()) }}" class="tag" title="{{ r.floor }}{% if r.time_from %} · {{ r.time_from }}–{{ r.time_to }}{% endif %}">{{ r.code }}{% if r.time_from %} <small>{{ r.time_from }}–{{ r.time_to }}</small>{% endif %}</a>
+        {% elif p.fixed_code %}<span class="tag fixed" title="{{ _('Permanent desk') }} · {{ p.fixed_floor }}">{{ p.fixed_code }}</span>
+        {% elif not s %}<span class="muted">-</span>{% endif %}
+        {% for x in s %}<a href="{{ url_for('web.plan', floor=x.floor_id, date=d.isoformat()) }}" class="tag room-tag" title="{{ x.place }}{% if x.title %} · {{ x.title }}{% endif %}">{{ x.place }}{% if x.time_from %} {{ x.time_from }}–{{ x.time_to }}{% endif %}</a>{% endfor %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% else %}<tr><td colspan="6" class="empty">{{ _('Nobody from this group has a booking this week.') }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <div class="week-mobile">
+    {% for d in days %}{% set ds = d.isoformat() %}
+    <div class="wm-day {{ 'today' if d == today }}">
+      <div class="wm-head"><span>{{ weekday(d) }} {{ d.strftime('%d.%m') }}</span><span>{{ _('in the office:') }} {{ gr.in_office[loop.index0] }}</span></div>
+      {% for p in gr.people %}{% set r = desks.get((p.email, ds)) %}{% set s = rooms.get((p.email, ds), []) %}
+        {% if r or s or p.fixed_code %}
+        <div class="wm-person"><span>{{ p.name }}{% if p.email == me.email %} <span class="tag accent">{{ _('me') }}</span>{% endif %}</span>
+          <span>{% if r %}<span class="tag">{{ r.code }}{% if r.time_from %} {{ r.time_from }}–{{ r.time_to }}{% endif %}</span>
+            {% elif p.fixed_code %}<span class="tag fixed">{{ p.fixed_code }}</span>{% endif %}
+            {% for x in s %}<span class="tag room-tag">{{ x.place }} {{ x.time_from or '' }}</span>{% endfor %}</span></div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

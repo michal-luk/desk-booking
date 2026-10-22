@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('My bookings') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<div class="row"><h1 style="margin:0">{{ _('My bookings') }}</h1><span class="spacer"></span>
+  <label class="row small" title="{{ _('Booking confirmations and information when someone cancels your booking') }}">
+    <input type="checkbox" id="notifications" {{ 'checked' if me.notifications != 0 }}> {{ _('E-mail notifications about bookings') }}</label>
+</div>
+<div style="height:16px"></div>
+{% if fixed %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Permanent desk') }}</h3>
+  {% for s in fixed %}<p><b>{{ s.code }}</b> · {{ s.floor }} - <a href="{{ url_for('web.plan', floor=s.floor_id) }}">{{ _('show on the plan') }}</a></p>{% endfor %}
+</div>
+{% endif %}
+<div class="card">
+  <div class="row"><h3 style="margin:0">{{ _('Upcoming') }}</h3><span class="spacer"></span>
+    {% if upcoming %}<button class="btn sm danger" id="cancel-selected" disabled>{{ _('Cancel selected') }}</button>{% endif %}</div>
+  {% if upcoming %}
+  <table class="t" style="margin-top:8px">
+    <tr><th style="width:30px"><input type="checkbox" id="select-all" title="{{ _('Select all') }}"></th><th>{{ _('Date') }}</th><th>{{ _('Hours') }}</th><th>{{ _('Place') }}</th><th>{{ _('Floor') }}</th><th>{{ _('Booked by') }}</th><th></th></tr>
+    {% for r in upcoming %}{% set d = parse_date(r.date) %}
+    <tr id="r{{ r.id }}">
+      <td><input type="checkbox" class="sel" value="{{ r.id }}"></td>
+      <td><b>{{ r.date }}</b> <span class="muted">{{ weekday(d) }}</span></td>
+      <td>{% if r.time_from %}<b>{{ r.time_from }}–{{ r.time_to }}</b>{% else %}<span class="muted">{{ _('all day') }}</span>{% endif %}</td>
+      <td>{{ r.place }}{% if r.title %}<br><span class="small muted">{{ r.title }}</span>{% endif %}</td><td>{{ r.floor }}</td>
+      <td class="small muted mob-hide">{{ _('me') if r.created_by == me.email else (r.created_by_name or r.created_by) }}</td>
+      <td class="actions"><div class="row end">
+        <a class="btn sm" href="{{ url_for('web.plan', floor=r.floor_id, date=r.date) }}">{{ _('Plan') }}</a>
+        <button class="btn sm danger" data-cancel="{{ r.id }}" data-desc="{{ r.place }}, {{ r.date }} ({{ r.hours }})">{{ _('Cancel') }}</button>
+      </div></td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="small muted">{{ _('Select several days (or all with the checkbox in the header) to cancel them at once.') }}</p>
+  {% else %}<p class="empty">{{ _('No upcoming bookings.') }} <a href="{{ url_for('web.plan') }}">{{ _('Book a desk') }}</a></p>{% endif %}
+</div>
+{% if past %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('History') }}</h3>
+  <table class="t">
+    {% for r in past %}{% set d = parse_date(r.date) %}
+    <tr><td>{{ r.date }} <span class="muted">{{ weekday(d) }}</span></td><td>{{ r.hours }}</td><td>{{ r.place }}</td><td>{{ r.floor }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const selected = () => [...document.querySelectorAll('.sel:checked')].map(c => parseInt(c.value, 10));
+const bulk = document.getElementById('cancel-selected');
+function refreshButton() {
+  if (!bulk) return;
+  const n = selected().length;
+  bulk.disabled = !n;
+  bulk.textContent = n ? t('Cancel selected ({n})', { n }) : t('Cancel selected');
+}
+document.querySelectorAll('.sel').forEach(c => c.onchange = refreshButton);
+const all = document.getElementById('select-all');
+if (all) all.onchange = () => { document.querySelectorAll('.sel').forEach(c => { c.checked = all.checked; }); refreshButton(); };
+if (bulk) bulk.onclick = () => cancelBookings(selected(), t('{n} bookings', { n: selected().length }));
+document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => cancelBookings([parseInt(b.dataset.cancel, 10)], b.dataset.desc));
+
+document.getElementById('notifications').onchange = async ev => {
+  const r = await api('/api/notifications', { method: 'POST', body: { enabled: ev.target.checked } });
+  if (!r.ok) return toast(t('Could not save the setting'), true);
+  toast(r.enabled ? t('E-mail notifications switched on.') : t('E-mail notifications switched off.'));
+};
+
+async function cancelBookings(ids, desc) {
+  if (!ids.length || !(await confirmDialog(t('Cancel: {desc}?', { desc }), { button: t('Cancel the booking'), cancel: t('Back'), danger: true }))) return;
+  const r = await api('/api/cancel', { method: 'POST', body: { ids } });
+  if (!r.ok) return toast(r.error || t('Error'), true);
+  r.cancelled.forEach(id => { const w = document.getElementById('r' + id); if (w) w.remove(); });
+  toast(r.errors && r.errors.length ? t('Cancelled {n}; {errors}', { n: r.cancelled.length, errors: r.errors.join('; ') })
+                                    : t('Cancelled: {n}.', { n: r.cancelled.length }), !!(r.errors && r.errors.length));
+  refreshButton();
+}
+</script>
+{% endblock %}

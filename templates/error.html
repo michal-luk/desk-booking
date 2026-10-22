@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="login-box"><div class="card">
+  <h1>{{ code }}</h1>
+  <p>{{ text }}</p>
+  <p><a class="btn" href="{{ url_for('web.plan') }}">{{ _('Back to the floor plan') }}</a></p>
+</div></div>
+{% endblock %}

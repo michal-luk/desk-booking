@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Teams') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Teams') }}</h1>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('New team') }}</h3>
+  <form method="post" action="{{ url_for('admin.new_team') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <label class="f">{{ _('Name') }}<input type="text" name="name" required></label>
+      <label class="f">{{ _('Team manager') }}<input type="text" data-people data-target="manager_email" placeholder="{{ _('search by name') }}"></label>
+      <input type="hidden" name="manager_email">
+      <label class="f">{{ _('Description') }}<input type="text" name="description"></label>
+      <label class="f">{{ _('Colour on the plan') }}<input type="color" name="color" value="#1d5fbf"></label>
+    </div>
+    <p><button class="btn primary">{{ _('Create the team') }}</button></p>
+  </form>
+  <p class="small muted">{{ _('After creating the team you add members: one by one (e-mail, first and last name) or in bulk from a pasted list - new people get accounts.') }}
+    {{ _('The team manager can book desks for the members of their team.') }}</p>
+</div>
+<div class="card">
+  <table class="t">
+    <tr><th>{{ _('Team') }}</th><th>{{ _('Manager') }}</th><th>{{ _('Members') }}</th><th>{{ _('Places') }}</th><th></th></tr>
+    {% for t in teams %}
+    <tr>
+      <td><span class="chip"><i style="background:{{ t.color }}"></i><a href="{{ url_for('admin.team', team_id=t.id) }}"><b>{{ t.name }}</b></a></span>
+        {% if t.description %}<br><span class="small muted">{{ t.description }}</span>{% endif %}</td>
+      <td class="small">{{ t.manager_name or '-' }}</td>
+      <td>{{ t.count }}</td><td>{{ t.places }}</td>
+      <td class="actions"><div class="row end"><a class="btn sm" href="{{ url_for('admin.team', team_id=t.id) }}">{{ _('Edit') }}</a></div></td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="empty">{{ _('There are no teams yet.') }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

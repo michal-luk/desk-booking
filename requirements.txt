@@ -1,0 +1,8 @@
+Flask>=3.0
+waitress>=3.0
+requests>=2.31
+PyJWT[crypto]>=2.8
+cryptography>=42
+# sterowniki baz - tylko dla wybranej bazy (SQLite nie potrzebuje niczego):
+psycopg2-binary>=2.9   # PostgreSQL
+PyMySQL>=1.1           # MariaDB / MySQL

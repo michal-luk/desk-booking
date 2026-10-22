@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Log') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Occupancy and log') }}</h1>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Bookings per day (30 days back, 14 ahead) · bookable desks: {n}', n=desks) }}</h3>
+  {% if occupancy %}
+  {% set mx = [occupancy|map(attribute='n')|max, desks, 1]|max %}
+  <div class="bars">
+    {% for o in occupancy %}<div class="{{ 'future' if o.date > today }}" style="height:{{ (o.n / mx * 100)|round }}%" data-t="{{ o.date }}: {{ o.n }}{% if desks %} ({{ (o.n / desks * 100)|round|int }}%){% endif %}"></div>{% endfor %}
+  </div>
+  {% else %}<p class="muted">{{ _('No bookings in this period.') }}</p>{% endif %}
+</div>
+<div class="card">
+  <form method="get" class="row" style="margin-bottom:10px">
+    <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Search the log') }}" style="width:320px"><button class="btn">{{ _('Search') }}</button></form>
+  <table class="t small">
+    <tr><th>{{ _('When') }}</th><th>{{ _('Who') }}</th><th>{{ _('Action') }}</th><th>{{ _('Details') }}</th></tr>
+    {% for w in entries %}
+    <tr><td style="white-space:nowrap">{{ w.at }}</td><td>{{ w.display_name or w.actor }}</td><td><span class="tag">{{ w.action }}</span></td>
+      <td>{% for k, v in w.details.items() %}<span class="muted">{{ k }}:</span> {{ v|join(', ') if (v is iterable and v is not string) else v }} &nbsp;{% endfor %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

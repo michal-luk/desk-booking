@@ -1,0 +1,2 @@
+<div class="lang-switch{{ ' light' if light }}">{% for code, name in LANGUAGES.items() %}<a href="{{ url_for('auth.set_language', code=code, next=request.full_path) }}"
+   class="{{ 'active' if code == lang }}" title="{{ name }}" lang="{{ code }}">{{ code|upper }}</a>{% endfor %}</div>

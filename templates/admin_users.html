@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Users') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Users and roles') }}</h1>
+<p class="muted small">{{ _('Accounts: {total} · active: {active} · have logged in: {logged} · with an API key: {keys}', total=stats.total or 0, active=stats.active or 0, logged=stats.logged_in or 0, keys=stats.with_key or 0) }}</p>
+
+<div class="grid2">
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Add a person') }}</h3>
+  <form method="post" action="{{ url_for('admin.add_user') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <label class="f">{{ _('First name') }}<input type="text" name="first_name" required></label>
+      <label class="f">{{ _('Last name') }}<input type="text" name="last_name" required></label>
+      <label class="f">{{ _('E-mail') }}<input type="email" name="email" required></label>
+      <label class="f">{{ _('Role') }}<select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == 'user' }}>{{ _(v) }}</option>{% endfor %}</select></label>
+      <label class="f">{{ _('Language') }}<select name="language"><option value="">{{ _('default') }}</option>{% for code, name in LANGUAGES.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</select></label>
+      <label class="f">{{ _('Initial password (optional)') }}<input type="password" name="password" autocomplete="new-password" placeholder="{{ _('empty = invitation / SSO') }}"></label>
+    </div>
+    <label class="option small"><input type="checkbox" name="force_change" value="1" checked> {{ _('force a password change at the first login') }}</label>
+    <label class="option small"><input type="checkbox" name="invite" value="1" {{ 'checked' if mail }}> {% if mail %}{{ _('send an e-mail with a link to set the password') }}{% else %}{{ _('prepare a link to set the password (mail is not configured - the link will be shown here)') }}{% endif %}</label>
+    <button class="btn primary">{{ _('Add') }}</button>
+  </form>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Roles') }}</h3>
+  <table class="t small">
+    <tr><td><b>{{ _('Administrator') }}</b></td><td>{{ _('everything: accounts and roles, settings (database, SSO, mail, API), floors, teams, booking for anyone without the days-ahead limit') }}</td></tr>
+    <tr><td><b>{{ _('Editor') }}</b></td><td>{{ _('draws floor plans, manages teams and desk assignment') }}</td></tr>
+    <tr><td><b>{{ _('User') }}</b></td><td>{{ _('books places open to everyone and places of their teams') }}</td></tr>
+    <tr><td><i>{{ _('blocked') }}</i></td><td>{{ _('an account without access (the booking history stays)') }}</td></tr>
+  </table>
+  <p class="small muted">{{ _('A manager is not a role: a team manager can book and cancel for the members of their team. People added to a team get an account with the User role.') }}</p>
+</div>
+</div>
+
+<div class="card">
+  <form method="get" class="row" style="margin-bottom:10px;flex-wrap:wrap">
+    <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Search: first name, last name, e-mail') }}" style="width:280px">
+    <select name="team" onchange="this.form.submit()"><option value="">{{ _('all teams') }}</option>
+      {% for t in teams %}<option value="{{ t.id }}" {{ 'selected' if team_id == t.id }}>{{ t.name }}</option>{% endfor %}</select>
+    <select name="role" onchange="this.form.submit()"><option value="">{{ _('any role') }}</option>
+      {% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if role == k }}>{{ _(v) }}</option>{% endfor %}</select>
+    <select name="state" onchange="this.form.submit()"><option value="">{{ _('all accounts') }}</option>
+      {% for k, v in [('blocked', _('blocked')), ('no_password', _('without a password')), ('api_key', _('with an API key'))] %}<option value="{{ k }}" {{ 'selected' if state == k }}>{{ v }}</option>{% endfor %}</select>
+    <button class="btn">{{ _('Search') }}</button>
+    {% if q or role or team_id or state %}<a class="btn" href="{{ url_for('admin.users') }}">{{ _('Clear') }}</a>{% endif %}
+    <span class="spacer"></span><span class="small muted">{{ _('On the list:') }} <b>{{ people|length }}</b></span>
+  </form>
+  <table class="t">
+    <tr><th>{{ _('Person') }}</th><th>{{ _('Teams') }}</th><th>{{ _('Login') }}</th><th class="mob-hide">{{ _('Last time') }}</th><th>{{ _('Role') }}</th><th></th></tr>
+    {% for p in people %}
+    <tr class="{{ 'past' if not p.active }}">
+      <td><b>{{ p.display_name or p.email }}</b><br><span class="small muted">{{ p.email }}{% if not p.active %} · <span style="color:var(--err)">{{ _('blocked') }}</span>{% endif %}</span></td>
+      <td class="small"><div class="tags">{% for t in p.teams %}<a class="tag color" style="background:{{ t.color }}" href="{{ url_for('admin.users', team=t.id) }}">{{ t.name }}</a>{% else %}<span class="muted">-</span>{% endfor %}</div></td>
+      <td class="small">{% if p.password_hash %}{{ _('password') }}{% endif %}{% if p.password_hash and p.sso_provider %} + {% endif %}{% if p.sso_provider %}SSO{% endif %}{% if not p.password_hash and not p.sso_provider %}<span class="muted">{{ _('not yet') }}</span>{% endif %}
+        {% if p.api_key_hash %}<br><span class="tag">{{ _('API key') }}</span>{% endif %}</td>
+      <td class="small muted mob-hide">{{ p.last_login or '-' }}</td>
+      <td class="small">{{ _(ROLES.get(p.role, p.role)) }}</td>
+      <td class="actions"><div class="row end">
+        {% if p.active %}<button type="button" class="btn sm" data-password-link="{{ p.email }}" data-name="{{ p.display_name or p.email }}" title="{{ _('E-mail with a link to set a new password') }}">{{ _('Send password link') }}</button>
+        <button type="button" class="btn sm" data-set-password="{{ p.email }}" data-name="{{ p.display_name or p.email }}" title="{{ _('Temporary password to change at login') }}">{{ _('Set password') }}</button>{% endif %}
+        <a class="btn sm" href="{{ url_for('admin.user', email=p.email) }}">{{ _('Edit') }}</a></div></td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="empty">{{ _('No results.') }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

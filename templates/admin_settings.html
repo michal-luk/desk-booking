@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Settings') }} - {{ _('Desks') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Settings') }}</h1>
+<nav class="tabs">
+  {% for k, v in [('database', _('Database')), ('login', _('Language, login and SSO')), ('mail', _('Mail')), ('api', _('API and MCP')), ('appearance', _('Appearance'))] %}
+  <a href="{{ url_for('admin.settings', tab=k) }}" class="{{ 'active' if tab == k }}">{{ v }}</a>{% endfor %}
+</nav>
+
+{% if tab == 'database' %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Current database') }}</h3>
+  <p><b>{{ database_text }}</b></p>
+  <p class="small muted">{{ _('The chosen database is saved in data/database.json (the database password encrypted with AES-256-GCM).') }}
+    {{ _('Encryption key:') }} {{ _('ENCRYPTION_KEY from the .env file') if key_from_env else _('the file data/encryption_key - moving it to ENCRYPTION_KEY in .env and keeping a copy outside the server is recommended') }}.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Change the database') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_database') }}" id="database-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid even">
+      <label class="f">{{ _('Database type') }}<select name="type" id="db-type">
+        {% for k, v in DB_TYPES.items() %}<option value="{{ k }}" {{ 'selected' if database.type == k }}>{{ v }}{{ ' (' ~ _('file on the server') ~ ')' if k == 'sqlite' }}</option>{% endfor %}</select></label>
+    </div>
+    <div data-for="sqlite" class="form-grid even" style="margin-top:12px">
+      <label class="f">{{ _('File path') }}<input type="text" name="path" value="{{ database.path or '' }}" placeholder="{{ _('empty = data/desks.sqlite') }}"></label>
+    </div>
+    <div data-for="server" style="margin-top:12px">
+      <div class="form-grid even">
+        <label class="f">{{ _('Server') }}<input type="text" name="host" value="{{ database.host or '' }}" placeholder="localhost"></label>
+        <label class="f">{{ _('Port') }}<input type="number" name="port" id="db-port" value="{{ database.port or '' }}" placeholder="{{ _('default') }}"></label>
+        <label class="f">{{ _('Database name') }}<input type="text" name="database" value="{{ database.database or '' }}" placeholder="desks"></label>
+        <label class="f">{{ _('User') }}<input type="text" name="user" value="{{ database.user or '' }}" autocomplete="off"></label>
+        <label class="f">{{ _('Password') }}<input type="password" name="password" autocomplete="new-password" placeholder="{{ _('saved - empty = unchanged') if database.password else '' }}"></label>
+        <label class="f">{{ _('Connection encryption') }}<select name="tls">
+          {% for k, v in [('off', _('TLS not required')), ('require', _('require TLS')), ('verify', _('TLS with certificate verification'))] %}<option value="{{ k }}" {{ 'selected' if (database.tls or 'off') == k }}>{{ v }}</option>{% endfor %}</select></label>
+        <label class="f">{{ _('CA certificate (optional)') }}<input type="text" name="ca" value="{{ database.ca or '' }}" placeholder="{{ _('path to a .pem file') }}"></label>
+      </div>
+      <p class="small muted">{{ _('The database and the user must be created on the server first (e.g. CREATE DATABASE desks, in MariaDB/MySQL with the utf8mb4 encoding). The application creates the tables itself.') }}</p>
+    </div>
+    <h3>{{ _('Data when switching') }}</h3>
+    <label class="option"><input type="radio" name="data" value="copy" checked> <span>{{ _('Copy all data from the current database (accounts, teams, floors, bookings, log, settings).') }}
+      <label class="row small" style="margin-top:4px"><input type="checkbox" name="overwrite" value="1"> {{ _('the chosen database already has data - delete its data and replace it') }}</label></span></label>
+    <label class="option"><input type="radio" name="data" value="use"> <span>{{ _('Use the data that is already in the chosen database (your administrator account must exist there).') }}</span></label>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" name="action" value="test">{{ _('Check the connection') }}</button>
+      <button class="btn primary" name="action" value="save" data-confirm="{{ _('Switch the application to the chosen database?') }}" data-confirm-button="{{ _('Switch') }}">{{ _('Save and switch') }}</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if tab == 'login' %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Language') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_general') }}" class="row" style="flex-wrap:wrap">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="f" style="min-width:260px">{{ _('Default language of the application') }}<select name="default_language">
+      <option value="auto" {{ 'selected' if general.default_language == 'auto' }}>{{ _('the language of the browser') }}</option>
+      {% for code, name in LANGUAGES.items() %}<option value="{{ code }}" {{ 'selected' if general.default_language == code }}>{{ name }}</option>{% endfor %}</select></label>
+    <button class="btn primary" style="align-self:flex-end">{{ _('Save') }}</button>
+  </form>
+  <p class="small muted">{{ _("Everyone can change their language on the login screen, in the top bar and in My account - the choice is remembered on the account. E-mails are sent in the recipient's language.") }}
+    {{ _('Languages are files in the locales/ folder - add a translation by copying en.json.') }}</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Login with e-mail and password') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_login') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="option"><input type="checkbox" name="password_login" value="1" {{ 'checked' if login.password_login }}> <span>{{ _('Allow password login next to SSO') }}</span></label>
+    <label class="option"><input type="checkbox" name="password_admins_only" value="1" {{ 'checked' if login.password_admins_only }}> <span>{{ _('…but only for administrators (everyone else only with SSO)') }}</span></label>
+    <p class="small muted">{{ _('While no SSO provider is enabled, password login always works. An administrator can always log in with a password (break-glass access when SSO does not work). Passwords are stored as scrypt hashes; after 5 failed attempts the account is locked for 15 minutes.') }}</p>
+    <button class="btn primary">{{ _('Save') }}</button>
+  </form>
+</div>
+
+<h3>{{ _('Single sign-on (SSO)') }}</h3>
+<p class="small muted">{{ _('OpenID Connect with PKCE. Register the redirect URI shown in each panel at the provider.') }}</p>
+{% for p, name in PROVIDERS.items() %}{% set c = sso_cfg[p] %}
+<details class="sso" {{ 'open' if c.enabled }}>
+  <summary><span class="sso-icon {{ {'microsoft': 'ms', 'google': 'g', 'oidc': 'key'}[p] }}">{{ 'G' if p == 'google' else ('⚿' if p == 'oidc' else '') }}</span>{{ _(name) }}
+    <span class="spacer"></span><span class="small {{ 'status-on' if c.enabled else 'status-off' }}">{{ _('on') if c.enabled else _('off') }}</span></summary>
+  <form method="post" action="{{ url_for('admin.settings_sso', provider=p) }}" style="padding-bottom:16px">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="option"><input type="checkbox" name="enabled" value="1" {{ 'checked' if c.enabled }}> <span>{{ _('Show the "Log in with…" button') }}</span></label>
+    <div class="form-grid even">
+      {% if p == 'oidc' %}
+      <label class="f">{{ _('Button label') }}<input type="text" name="name" value="{{ c.name or '' }}" placeholder="{{ _('e.g. Keycloak, Okta') }}"></label>
+      <label class="f">{{ _('Provider address (issuer / discovery URL)') }}<input type="url" name="discovery_url" value="{{ c.discovery_url or '' }}" placeholder="https://sso.example.com/realms/company"></label>
+      <label class="f">{{ _('Scopes') }}<input type="text" name="scope" value="{{ c.scope or 'openid email profile' }}"></label>
+      {% endif %}
+      <label class="f">{{ 'Application (client) ID' if p == 'microsoft' else 'Client ID' }}<input type="text" name="client_id" value="{{ c.client_id or '' }}" autocomplete="off"></label>
+      <label class="f">Client secret<input type="password" name="client_secret" autocomplete="new-password" placeholder="{{ _('saved - empty = unchanged') if c.client_secret else '' }}"></label>
+      {% if p == 'microsoft' %}
+      <label class="f">Directory (tenant) ID<input type="text" name="tenant" value="{{ c.tenant or 'organizations' }}" placeholder="{{ _('tenant id or organizations') }}"></label>
+      {% endif %}
+      <label class="f">{{ _('Allowed e-mail domains') }}<input type="text" name="domains" value="{{ c.domains or '' }}" placeholder="{{ _('example.com, example.org (empty = any)') }}"></label>
+      <label class="f">{{ _('Redirect URI') }}<input type="url" name="redirect_uri" value="{{ c.redirect_uri or '' }}" placeholder="{{ sso_redirect[p] }}"></label>
+    </div>
+    <p class="small">{{ _('To register at the provider:') }} <code class="code">{{ sso_redirect[p] }}</code></p>
+    <label class="option"><input type="checkbox" name="auto_create" value="1" {{ 'checked' if c.auto_create }}> <span>{{ _('Create accounts automatically at the first login (User role). Without it only people added in "Users" or in a team can log in.') }}</span></label>
+    {% if c.client_secret %}<label class="option small"><input type="checkbox" name="remove_secret" value="1"> {{ _('delete the saved secret') }}</label>{% endif %}
+    <p class="small muted">
+      {% if p == 'microsoft' %}{{ _('Entra ID (Azure portal) → App registrations → New registration → platform Web with the redirect URI above → Certificates & secrets → New client secret. Permissions: openid, email, profile (default). Tenant organizations = work accounts of any organisation - enter your tenant id to let in only yours.') }}
+      {% elif p == 'google' %}{{ _('Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth client ID → type Web application, "Authorized redirect URIs" = the address above. With one Workspace domain Google shows only accounts of that domain.') }}
+      {% else %}{{ _('Any OpenID Connect server (Keycloak, Okta, Auth0, ADFS, Authentik…): create a confidential client with the authorization code flow and the redirect URI above. The provider address is the issuer - the application adds /.well-known/openid-configuration.') }}{% endif %}
+    </p>
+    <div class="row"><button class="btn primary">{{ _('Save') }}</button><button class="btn" name="action" value="test">{{ _('Check the connection to the provider') }}</button></div>
+  </form>
+</details>
+{% endfor %}
+{% endif %}
+
+{% if tab == 'mail' %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Mail server (SMTP)') }}</h3>
+  <p class="small muted">{{ _('Booking confirmations, cancellation notices, invitations of new people and password resets.') }}
+    {{ _('Examples: Microsoft 365 - smtp.office365.com, port 587, STARTTLS; Gmail / Workspace - smtp.gmail.com, 587, STARTTLS (app password).') }}</p>
+  <form method="post" action="{{ url_for('admin.settings_mail') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="option"><input type="checkbox" name="enabled" value="1" {{ 'checked' if mail.enabled }}> <span>{{ _('Send e-mail messages') }}</span></label>
+    <div class="form-grid even">
+      <label class="f">{{ _('Server') }}<input type="text" name="host" value="{{ mail.host or '' }}"></label>
+      <label class="f">{{ _('Port') }}<input type="number" name="port" value="{{ mail.port or 587 }}"></label>
+      <label class="f">{{ _('Encryption') }}<select name="mode">{% for k, v in [('starttls', 'STARTTLS'), ('ssl', 'SSL/TLS'), ('none', _('no encryption'))] %}<option value="{{ k }}" {{ 'selected' if mail.mode == k }}>{{ v }}</option>{% endfor %}</select></label>
+      <label class="f">{{ _('Login') }}<input type="text" name="login" value="{{ mail.login or '' }}" autocomplete="off"></label>
+      <label class="f">{{ _('Password') }}<input type="password" name="password" autocomplete="new-password" placeholder="{{ _('saved - empty = unchanged') if mail.password else '' }}"></label>
+      <label class="f">{{ _('Sender address') }}<input type="email" name="sender" value="{{ mail.sender or '' }}" placeholder="desks@example.com"></label>
+      <label class="f">{{ _('Sender name') }}<input type="text" name="sender_name" value="{{ mail.sender_name or '' }}"></label>
+    </div>
+    {% if mail.password %}<label class="option small"><input type="checkbox" name="remove_password" value="1"> {{ _('delete the saved password') }}</label>{% endif %}
+    <div class="row" style="margin-top:12px"><button class="btn primary">{{ _('Save') }}</button>
+      <button class="btn" name="action" value="test">{{ _('Save and send a test to {email}', email=me.email) }}</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if tab == 'api' %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('API and MCP server') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_api') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="option"><input type="checkbox" name="api" value="1" {{ 'checked' if api.api }}> <span>{{ _('REST API with a key') }} - <code>{{ APP_URL }}/api/v1</code></span></label>
+    <label class="option"><input type="checkbox" name="mcp" value="1" {{ 'checked' if api.mcp }}> <span>{{ _('MCP server for AI assistants') }} - <code>{{ APP_URL }}/mcp</code></span></label>
+    <div class="form-grid" style="max-width:420px"><label class="f">{{ _('Requests per key per minute (0 = no limit)') }}<input type="number" name="rate_limit" value="{{ api.rate_limit }}" min="0"></label></div>
+    <label class="option small"><input type="checkbox" name="revoke_all" value="1"> {{ _('revoke all API keys (everyone generates a new one in "My account")') }}</label>
+    <button class="btn primary">{{ _('Save') }}</button>
+  </form>
+  <p class="small muted" style="margin-top:14px">{{ _("Every person - including the administrator - generates their own key in My account. A key has the permissions of its owner: an administrator's key sees all bookings and can cancel them, a user's key - only what that user can in the browser. Keys are stored encrypted (AES-256-GCM), a SHA-256 hash is used for the lookup. Revoke a single person's key on their page in Users.") }}</p>
+</div>
+{% endif %}
+{% if tab == 'appearance' %}
+<div class="card">
+  <h3 style="margin-top:0">{{ _('Main colours of the application') }}</h3>
+  <p class="small muted">{{ _('The colours apply to everyone - the top bar, buttons, links, your bookings on the plan and the e-mails. Darker and lighter shades are calculated automatically.') }}</p>
+  <h3>{{ _('Ready-made sets') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_theme') }}" class="row" style="flex-wrap:wrap">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% for key, p in PRESETS.items() %}
+    <button class="btn theme-preset" name="preset" value="{{ key }}" title="{{ _(p.name) }}">
+      <span class="swatches"><i style="background:{{ p.header }}"></i><i style="background:{{ p.main }}"></i><i style="background:{{ p.accent }}"></i></span>{{ _(p.name) }}</button>
+    {% endfor %}
+  </form>
+  <h3>{{ _('Own colours') }}</h3>
+  <form method="post" action="{{ url_for('admin.settings_theme') }}" id="theme-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid even">
+      <label class="f">{{ _('Header bar') }}<span class="row"><input type="color" name="header" value="{{ colors.header }}" data-var="header"><code class="small">{{ colors.header }}</code></span></label>
+      <label class="f">{{ _('Main colour (buttons, links, my bookings)') }}<span class="row"><input type="color" name="main" value="{{ colors.main }}" data-var="main"><code class="small">{{ colors.main }}</code></span></label>
+      <label class="f">{{ _('Accent (highlights, counters, the active tab)') }}<span class="row"><input type="color" name="accent" value="{{ colors.accent }}" data-var="accent"><code class="small">{{ colors.accent }}</code></span></label>
+    </div>
+    <p class="small muted">{{ _('The page shows the colours as you pick them. They are saved for everyone after clicking Save.') }}</p>
+    <div class="row"><button class="btn primary">{{ _('Save') }}</button><a class="btn" href="{{ url_for('admin.settings', tab='appearance') }}">{{ _('Cancel') }}</a></div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  // live preview of the colours (the same shades as theme.py)
+  const mix = (a, b, k) => '#' + [1, 3, 5].map(i => {
+    const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16);
+    return Math.round(x + (y - x) * k).toString(16).padStart(2, '0');
+  }).join('');
+  const root = document.documentElement.style;
+  document.querySelectorAll('#theme-form input[type=color]').forEach(inp => inp.addEventListener('input', () => {
+    inp.nextElementSibling.textContent = inp.value;
+    const v = inp.value;
+    if (inp.dataset.var === 'header') { root.setProperty('--navy', v); root.setProperty('--navy-2', mix(v, '#ffffff', 0.12)); }
+    if (inp.dataset.var === 'main') { for (const n of ['--brand', '--accent', '--mine']) root.setProperty(n, v); root.setProperty('--brand-dark', mix(v, '#000000', 0.2)); }
+    if (inp.dataset.var === 'accent') { root.setProperty('--accent2', v); root.setProperty('--accent2-dark', mix(v, '#000000', 0.2)); root.setProperty('--accent2-bg', mix(v, '#ffffff', 0.88)); }
+  }));
+})();
+(() => {
+  const type = document.getElementById('db-type');
+  if (!type) return;
+  const PORTS = {{ DEFAULT_PORTS|tojson }};
+  const port = document.getElementById('db-port');
+  const show = () => {
+    const sqlite = type.value === 'sqlite';
+    document.querySelector('[data-for="sqlite"]').hidden = !sqlite;
+    document.querySelector('[data-for="server"]').hidden = sqlite;
+    port.placeholder = PORTS[type.value] || '';
+  };
+  type.onchange = show;
+  show();
+})();
+</script>
+{% endblock %}

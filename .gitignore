@@ -1,0 +1,24 @@
+# Local configuration and installation data - never commit
+.env
+data/
+static/uploads/*
+!static/uploads/.gitkeep
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editors and OS
+.idea/
+.vscode/
+.claude/
+*.swp
+Thumbs.db
+.DS_Store
